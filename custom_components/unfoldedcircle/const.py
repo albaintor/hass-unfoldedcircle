@@ -30,12 +30,5 @@ UC_HA_TOKEN_ID="ws-ha-api"
 
 DEBUG_UC_MSG=False
 
-TEST_HA_EXT=True
-
 UC_HA_SYSTEM = "hass"
-
-if TEST_HA_EXT:
-    UC_HA_DRIVER_ID = "hass2"
-else:
-    UC_HA_DRIVER_ID = "hass"
-
+UC_HA_DRIVER_ID = "hass"
