@@ -24,7 +24,6 @@ from .const import (
     RemoteUpdateType,
 )
 from .dock import Dock
-from ..const import TEST_HA_EXT
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -546,7 +545,7 @@ class Remote:
         token for the corresponding R2 integration instead of forcing the user to type it in.
         If the token name already exists for the given system, error 422 is returned."""
 
-        if await self.is_external_system_valid(system) or TEST_HA_EXT:
+        if await self.is_external_system_valid(system):
             body = {
                 "token_id": f"{token_id}",
                 "name": f"{name}",
@@ -1253,7 +1252,6 @@ class Remote:
             self.client() as session,
             session.get(self.url("system/update/latest")) as response,
         ):
-            await self.raise_on_error(response)
             information = await response.json()
             if response.ok:
                 self._download_percent = information.get("download_percent")
@@ -1590,7 +1588,7 @@ class Remote:
                 ]
                 == "media_player"
                 and data["msg_data"]["new_state"]["attributes"]["step"]["command"][
-                "cmd_id"
+                    "cmd_id"
                 ]
                 == "media_player.on"
             ):

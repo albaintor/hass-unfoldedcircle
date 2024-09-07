@@ -11,8 +11,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er, issue_registry
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from homeassistant.helpers.network import get_url
-from pyUnfoldedCircleRemote.remote import Remote, AuthenticationError
+from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 from .const import (
     DOMAIN,
@@ -24,6 +23,7 @@ from .coordinator import (
     UnfoldedCircleRemoteCoordinator,
     UnfoldedCircleDockCoordinator,
 )
+
 
 PLATFORMS: list[Platform] = [
     Platform.SWITCH,

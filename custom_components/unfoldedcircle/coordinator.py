@@ -127,7 +127,7 @@ class UnfoldedCircleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 f" - Player {media_entity.name} ({media_entity.id}) : {media_entity.state}"
             )
         if DEBUG_UC_MSG:
-            _LOGGER.debug("UC2 debug structure\n%s", "\n".join(debug_info))
+            _LOGGER.debug("UC debug structure\n%s", "\n".join(debug_info))
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Get the latest data from the Unfolded Circle Remote."""

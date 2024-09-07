@@ -20,6 +20,8 @@ from homeassistant.helpers.selector import (
     EntitySelector,
     EntitySelectorConfig,
 )
+from .helpers import validate_dock_password
+from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 from .const import (
     CONF_ACTIVITIES_AS_SWITCHES,
@@ -38,7 +40,10 @@ from .websocket import SubscriptionEvent, UCWebsocketClient
 _LOGGER = logging.getLogger(__name__)
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
-    {vol.Required("host"): str, vol.Required("pin"): str}
+    {
+        vol.Required("host"): str,
+        vol.Required("pin"): str,
+    }
 )
 
 STEP_ZEROCONF_DATA_SCHEMA = vol.Schema({vol.Required("pin"): str})
@@ -63,12 +68,13 @@ async def generate_token(hass: HomeAssistant, name):
             )
     except ValueError:
         _LOGGER.warning("There is already a long lived token with %s name", name)
-
         return None
+
     return hass.auth.async_create_access_token(token)
 
 
 async def remove_token(hass: HomeAssistant, token):
+    """Remove api token from remote"""
     _LOGGER.debug("Removing refresh token")
     refresh_token = hass.auth.async_get_refresh_token_by_token(token)
     hass.auth.async_remove_refresh_token(refresh_token)
@@ -253,6 +259,8 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self._data = None
         self._remote: Remote | None = None
         self._websocket_client: UCWebsocketClient | None
+        self.dock_count: int = 0
+        self.info: dict[str, any] = {}
 
     async def validate_input(self, data: dict[str, Any], host: str = "") -> dict[str, Any]:
         """Validate the user input allows us to connect.
@@ -317,6 +325,10 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         if self._remote.mac_address:
             mac_address = self._remote.mac_address.replace(":", "").lower()
 
+        docks = []
+        for dock in self._remote._docks:
+            docks.append({"id": dock.id, "name": dock.name, "password": ""})
+
         # Return info that you want to store in the config entry.
         return {
             "title": self._remote.name,
@@ -329,6 +341,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             "token_id": UC_HA_TOKEN_ID,
             CONF_SERIAL: self._remote.serial_number,
             CONF_MAC: mac_address,
+            "docks": docks,
         }
 
     @staticmethod
@@ -345,6 +358,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         port = discovery_info.port
         hostname = discovery_info.hostname
         name = discovery_info.name
+        model = discovery_info.properties.get("model")
         endpoint = f"http://{host}:{port}/api/"
         # Best location to initialize websocket instance : it will run even if no integrations are configured
         self._websocket_client = UCWebsocketClient(self.hass)
@@ -375,17 +389,23 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 mac_address = SIMULATOR_MAC_ADDRESS.replace(":", "").lower()
 
         remote_name = "Remote Two"
-        if "RemoteThree" in hostname:
-            remote_name = "Remote Three"
-        self.discovery_info.update({
-            CONF_HOST: host,
-            CONF_PORT: port,
-            CONF_NAME: f"{remote_name} ({host})",
-            CONF_MAC: mac_address,
-        })
+        # TODO handle remote 3 name
+        if "Remote 3" in hostname:
+            remote_name = "Remote 3"
+        self.discovery_info.update(
+            {
+                CONF_HOST: host,
+                CONF_PORT: port,
+                CONF_NAME: f"{remote_name} ({host})",
+                CONF_MAC: mac_address,
+            }
+        )
 
         _LOGGER.debug(
-            "Unfolded circle remote found %s %s %s :", mac_address, host, discovery_info
+            "Unfolded circle remote found %s %s %s :",
+            mac_address,
+            host,
+            discovery_info,
         )
 
         # Use mac address as unique id as this is the only common
@@ -394,28 +414,40 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             await self._async_set_unique_id_and_abort_if_already_configured(mac_address)
 
         # Retrieve device friendly name set by the user
-        device_name = remote_name
-        try:
-            response = await Remote.get_version_information(endpoint)
-            device_name = response.get("device_name", None)
-            if not device_name:
-                device_name = remote_name
-        except Exception:
-            pass
 
-        if is_simulator:
-            device_name = f"{device_name} Simulator"
+        configuration_url = ""
+        device_name = ""
+        match model:
+            case "UCR2":
+                device_name = "Remote Two"
+                configuration_url = (
+                    f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
+                )
+                try:
+                    response = await Remote.get_version_information(endpoint)
+                    device_name = response.get("device_name", None)
+                    if not device_name:
+                        device_name = "Remote Two"
+                except Exception:
+                    pass
+            case "UCR2-simulator":
+                device_name = "Remote Two Simulator"
+                configuration_url = (
+                    f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
+                )
 
-        self.context.update({
-            "title_placeholders": {"name": device_name},
-            "configuration_url": (
-                f"http://{discovery_info.host}:{discovery_info.port}/configurator/"
-            ),
-            "product": "Product",
-        })
+        self.context.update(
+            {
+                "title_placeholders": {"name": device_name},
+                "configuration_url": configuration_url,
+                "product": "Product",
+            }
+        )
 
         _LOGGER.debug(
-            "Unfolded Circle Zeroconf Creating: %s %s", mac_address, discovery_info
+            "Unfolded Circle Zeroconf Creating: %s %s",
+            mac_address,
+            discovery_info,
         )
         return await self.async_step_zeroconf_confirm()
 
@@ -444,10 +476,10 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         except InvalidAuth:
             errors["base"] = "invalid_auth"
         else:
-            return self.async_create_entry(
-                title=info.get("title"),
-                data=info,
-            )
+            if info["docks"]:
+                return await self.async_step_dock(info=info, first_call=True)
+
+            return self.async_create_entry(title=info["title"], data=info)
 
         return self.async_show_form(
             step_id="zeroconf_confirm",
@@ -463,7 +495,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is None or user_input == {}:
             return self.async_show_form(
-                step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
+                step_id="user",
+                data_schema=STEP_USER_DATA_SCHEMA,
+                errors=errors
             )
 
         try:
@@ -482,10 +516,79 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
         else:
+            if info["docks"]:
+                return await self.async_step_dock(info=info, first_call=True)
             return await self.async_step_select_entities(None)
 
         return self.async_show_form(
-            step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
+            step_id="user",
+            data_schema=STEP_USER_DATA_SCHEMA,
+            errors=errors
+        )
+
+    async def async_step_dock(
+        self,
+        user_input: dict[str, Any] | None = None,
+        info: dict[str, any] = None,
+        first_call: bool = False,
+    ) -> FlowResult:
+        """Called if there are docks associated with the remote"""
+        schema = {}
+        errors: dict[str, str] = {}
+        dock_info: dict[str, any] | None = None
+        placeholder: dict[str, any] | None = None
+        if info:
+            self.info = info
+
+        dock_total = len(self.info["docks"])
+        if dock_total >= self.dock_count:
+            dock_info = self.info["docks"][self.dock_count]
+
+            schema[vol.Optional("password")] = str
+            placeholder = {
+                "name": dock_info.get("name"),
+                "count": f"({self.dock_count + 1}/{dock_total})",
+            }
+
+            if user_input is None or user_input == {}:
+                if first_call is False:
+                    self.dock_count += 1
+                    if dock_total == self.dock_count:
+                        return await self.async_step_select_entities(None)
+                return self.async_show_form(
+                    step_id="dock",
+                    data_schema=vol.Schema(schema),
+                    description_placeholders=placeholder,
+                    errors=errors,
+                    last_step=True,
+                )
+
+        try:
+            self.info["docks"][self.dock_count]["password"] = user_input["password"]
+            is_valid = await validate_dock_password(self._remote, dock_info)
+            if is_valid:
+                self.dock_count += 1
+            else:
+                self.info["docks"][self.dock_count]["password"] = ""
+                raise InvalidDockPassword
+
+        except CannotConnect:
+            errors["base"] = "cannot_connect"
+        except InvalidDockPassword:
+            errors["base"] = "invalid_dock_password"
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.exception("Unexpected exception")
+            errors["base"] = "unknown"
+
+        if dock_total == self.dock_count:
+            return await self.async_step_select_entities(None)
+
+        return self.async_show_form(
+            step_id="dock",
+            errors=errors,
+            description_placeholders=placeholder,
+            data_schema=vol.Schema(schema),
+            last_step=True,
         )
 
     async def _async_set_unique_id_and_abort_if_already_configured(
@@ -583,7 +686,7 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         self.config_entry = config_entry
         self.options = dict(config_entry.options)
         self._remote: Remote | None = None
-        self._websocket_client: UCWebsocketClient | None
+        self._websocket_client: UCWebsocketClient | None = None
         self._entity_ids: list[str] | None = None
 
     async def async_connect_remote(self) -> any:
@@ -616,26 +719,28 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="media_player",
-            data_schema=vol.Schema({
-                vol.Optional(
-                    CONF_GLOBAL_MEDIA_ENTITY,
-                    default=self.config_entry.options.get(
-                        CONF_GLOBAL_MEDIA_ENTITY, True
-                    ),
-                ): bool,
-                vol.Optional(
-                    CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
-                    default=self.config_entry.options.get(
-                        CONF_ACTIVITY_GROUP_MEDIA_ENTITIES, False
-                    ),
-                ): bool,
-                vol.Optional(
-                    CONF_ACTIVITY_MEDIA_ENTITIES,
-                    default=self.config_entry.options.get(
-                        CONF_ACTIVITY_MEDIA_ENTITIES, False
-                    ),
-                ): bool,
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_GLOBAL_MEDIA_ENTITY,
+                        default=self.config_entry.options.get(
+                            CONF_GLOBAL_MEDIA_ENTITY, True
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_ACTIVITY_GROUP_MEDIA_ENTITIES,
+                        default=self.config_entry.options.get(
+                            CONF_ACTIVITY_GROUP_MEDIA_ENTITIES, False
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_ACTIVITY_MEDIA_ENTITIES,
+                        default=self.config_entry.options.get(
+                            CONF_ACTIVITY_MEDIA_ENTITIES, False
+                        ),
+                    ): bool,
+                }
+            ),
             last_step=True,
         )
 
@@ -723,3 +828,7 @@ class CannotConnect(HomeAssistantError):
 
 class InvalidAuth(HomeAssistantError):
     """Error to indicate there is invalid auth."""
+
+
+class InvalidDockPassword(HomeAssistantError):
+    """Error to indicate an invalid dock password was supplied"""
