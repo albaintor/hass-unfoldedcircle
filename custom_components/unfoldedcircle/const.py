@@ -31,4 +31,5 @@ UC_HA_TOKEN_ID="ws-ha-api"
 DEBUG_UC_MSG=False
 
 UC_HA_SYSTEM = "hass"
-UC_HA_DRIVER_ID = "hass2"
+# For testing change driver id to hass2 for ex here and for registration
+UC_HA_DRIVER_ID = "hass"
