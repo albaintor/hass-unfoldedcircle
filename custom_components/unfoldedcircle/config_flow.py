@@ -81,11 +81,11 @@ async def remove_token(hass: HomeAssistant, token):
 
 
 async def async_step_select_entities(
-    config_flow: ConfigFlow | config_entries.OptionsFlow,
-    hass: HomeAssistant,
-    remote: Remote,
-    finish_callback: Callable[[dict[str, Any] | None], Awaitable[FlowResult]],
-    user_input: dict[str, Any] | None = None,
+        config_flow: ConfigFlow | config_entries.OptionsFlow,
+        hass: HomeAssistant,
+        remote: Remote,
+        finish_callback: Callable[[dict[str, Any] | None], Awaitable[FlowResult]],
+        user_input: dict[str, Any] | None = None,
 ) -> FlowResult:
     """Handle the selected entities to subscribe to for both setup and config flows."""
     errors: dict[str, str] = {}
@@ -102,7 +102,7 @@ async def async_step_select_entities(
         _LOGGER.debug("Extraction of remote's integrations %s", integrations)
         for integration in integrations:
             integration_id: str | None = integration.get("integration_id", None)
-            if integration_id is None: # or not integration.get("enabled", False):
+            if integration_id is None:  # or not integration.get("enabled", False):
                 continue
             # TODO hack to reload only HA integrations including external ones
             if not integration_id.startswith(UC_HA_DRIVER_ID):
@@ -215,18 +215,36 @@ async def async_step_select_entities(
                 )
             # Subscribe to the new entities
             integrations = await remote.get_remote_integrations()
-            for integration in integrations:
-                integration_id = integration.get("integration_id", None)
-                if (
-                    integration_id is None
-                    or integration.get("driver_id", "") != subscribed_entities_subscription.driver_id
-                ):
-                    continue
+            try:
+                ha_driver_instance = next(filter(lambda instance: instance.get('driver_id', None) ==
+                                                                  subscribed_entities_subscription.driver_id,
+                                                 integrations))
+
+                integration_id = ha_driver_instance.get("integration_id", "")
+                _LOGGER.debug(
+                    "Refresh the available/subscribed entities on the remote after the emission of new subscribed entities %s...",
+                    ha_driver_instance)
                 await remote.get_remote_integration_entities(integration_id, True)
                 await asyncio.sleep(3)
                 # Subscribe to all available entities sent before
+                _LOGGER.debug(
+                    "Set all available entities as subscribed",
+                    ha_driver_instance)
                 await remote.set_remote_integration_entities(integration_id, [])
-
+                _LOGGER.debug("Home assistant driver instance found %s", ha_driver_instance)
+            except StopIteration:
+                _LOGGER.error(
+                    "Failed to notify remote with the new entities %s for driver id %s",
+                    remote.hostname,
+                    subscribed_entities_subscription.driver_id
+                )
+                return config_flow.async_show_menu(
+                    step_id="select_entities",
+                    menu_options={
+                        "select_entities": f"Failed to notify the remote with the new entities (driver {UC_HA_DRIVER_ID} not found). Try again",
+                        "finish": "Ignore this step and finish",
+                    },
+                )
         except Exception as ex:  # pylint: disable=broad-except
             _LOGGER.error(
                 "Error while sending new entities to the remote %s (%s) %s",
@@ -347,7 +365,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(
-        config_entry: ConfigEntry,
+            config_entry: ConfigEntry,
     ):
         """Get the options flow for this handler."""
         return UnfoldedCircleRemoteOptionsFlowHandler(config_entry)
@@ -380,8 +398,8 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 )
             except Exception:
                 if (
-                    discovery_info.properties.get("model") != "UCR2-simulator"
-                    and discovery_info.properties.get("model") != "UCR3-simulator"
+                        discovery_info.properties.get("model") != "UCR2-simulator"
+                        and discovery_info.properties.get("model") != "UCR3-simulator"
                 ):
                     return self.async_abort(reason="no_mac")
                 _LOGGER.debug("Zeroconf from the Simulator %s", discovery_info)
@@ -452,7 +470,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         return await self.async_step_zeroconf_confirm()
 
     async def async_step_zeroconf_confirm(
-        self, user_input: dict[str, Any] | None = None
+            self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Confirm discovery."""
         errors: dict[str, str] = {}
@@ -488,7 +506,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
+            self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
         self._websocket_client = UCWebsocketClient(self.hass)
@@ -527,10 +545,10 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_dock(
-        self,
-        user_input: dict[str, Any] | None = None,
-        info: dict[str, any] = None,
-        first_call: bool = False,
+            self,
+            user_input: dict[str, Any] | None = None,
+            info: dict[str, any] = None,
+            first_call: bool = False,
     ) -> FlowResult:
         """Called if there are docks associated with the remote"""
         schema = {}
@@ -592,7 +610,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
     async def _async_set_unique_id_and_abort_if_already_configured(
-        self, unique_id: str
+            self, unique_id: str
     ) -> None:
         """Set the unique ID and abort if already configured."""
         await self.async_set_unique_id(unique_id, raise_on_progress=False)
@@ -601,7 +619,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_reauth(
-        self, user_input: dict[str, Any] | None = None
+            self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Perform reauth upon an API authentication error."""
         user_input["pin"] = None
@@ -609,7 +627,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         return await self.async_step_reauth_confirm(user_input)
 
     async def async_step_reauth_confirm(
-        self, user_input: dict[str, Any] | None = None
+            self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Dialog that informs the user that reauth is required."""
         self._websocket_client = UCWebsocketClient(self.hass)
@@ -665,7 +683,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_select_entities(
-        self, user_input: dict[str, Any] | None = None
+            self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the selected entities to subscribe to."""
         return await async_step_select_entities(
@@ -673,7 +691,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_finish(
-        self, user_input: dict[str, Any] | None = None
+            self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         return self.async_create_entry(title=self._data["title"], data=self._data)
 
@@ -774,7 +792,7 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         return self.async_create_entry(title="", data=self.options)
 
     async def async_step_select_entities(
-        self, user_input: dict[str, Any] | None = None
+            self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the selected entities to subscribe to."""
 
@@ -797,7 +815,7 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
             _LOGGER.debug("Remote list of integrations %s", remote_drivers_instances)
             try:
                 ha_driver_instance = next(filter(lambda instance: instance.get('driver_id', None) == UC_HA_DRIVER_ID,
-                                          remote_drivers_instances))
+                                                 remote_drivers_instances))
                 _LOGGER.debug("Home assistant driver instance found %s", ha_driver_instance)
             except StopIteration:
                 _LOGGER.debug("No Home assistant driver instance (%s), create one", UC_HA_DRIVER_ID)
@@ -817,7 +835,7 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         )
 
     async def async_step_finish(
-        self, user_input: dict[str, Any] | None = None
+            self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         return await self._update_options()
 
