@@ -98,7 +98,7 @@ async def async_step_select_entities(
 
     if user_input is None:
         # First find the active HA drivers on the remote
-        integrations = await remote.get_remote_integrations()
+        integrations = await remote.get_integrations()
         _LOGGER.debug("Extraction of remote's integrations %s", integrations)
         for integration in integrations:
             integration_id: str | None = integration.get("integration_id", None)
@@ -214,7 +214,8 @@ async def async_step_select_entities(
                     },
                 )
             # Subscribe to the new entities
-            integrations = await remote.get_remote_integrations()
+            integrations = await remote.get_integrations()
+            _LOGGER.debug("Remote list of integrations %s", integrations)
             try:
                 ha_driver_instance = next(filter(lambda instance: instance.get('driver_id', None) ==
                                                                   subscribed_entities_subscription.driver_id,

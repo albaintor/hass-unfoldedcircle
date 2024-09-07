@@ -758,15 +758,6 @@ class Remote:
             await self.raise_on_error(response)
             return await response.json()
 
-    async def get_remote_integrations(self) -> list[dict[str, any]]:
-        """List the integrations instances on the remote."""
-        async with (
-            self.client() as session,
-            session.get(self.url("intg/instances")) as response,
-        ):
-            await self.raise_on_error(response)
-            return await response.json()
-
     async def get_remote_integration_entities(
         self, integration_id, reload=False
     ) -> list[dict[str, any]]:
