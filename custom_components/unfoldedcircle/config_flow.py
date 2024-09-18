@@ -33,7 +33,7 @@ from .const import (
     HA_SUPPORTED_DOMAINS, UC_HA_TOKEN_ID, UC_HA_SYSTEM, UC_HA_DRIVER_ID
 )
 from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
-from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote, RemoteConnectionError
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote, RemoteConnectionError, HTTPError
 from .websocket import SubscriptionEvent, UCWebsocketClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -108,9 +108,10 @@ async def async_step_select_entities(
                 continue
             # Force reload of all the integrations entities as we don't know which one to address
             try:
-                _LOGGER.debug("Refresh the integration entities of %s : %s", integration_id,
-                              await remote.get_remote_integration_entities(integration_id, True))
-            except Exception as ex:
+                _LOGGER.debug("Refresh the integration entities of %s", integration_id)
+                integration_entities = await remote.get_remote_integration_entities(integration_id, True)
+                _LOGGER.debug("Integration entities of %s : %s", integration_id, integration_entities)
+            except (Exception, HTTPError) as ex:
                 _LOGGER.warning("Error while refreshing integration entities of %s", integration_id, ex)
 
         # Wait until 5 seconds so that the driver connects to HA and subscribe to events
@@ -124,8 +125,9 @@ async def async_step_select_entities(
                 if subscribed_entities_subscription is not None and configure_entities_subscription is not None:
                     break
                 _LOGGER.debug("Waiting for current subscribed entities from HA driver... (%s)", retries)
-            except Exception as ex:
+            except (Exception, HTTPError) as ex:
                 _LOGGER.error("Error while waiting for websocket events", ex)
+
         if configure_entities_subscription is None:
             _LOGGER.error(
                 "The remote's websocket didn't subscribe to configuration event, "
@@ -326,7 +328,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             await self._remote.get_remote_information()
             await self._remote.get_remote_configuration()
             await self._remote.get_remote_wifi_info()
-        except Exception as ex:
+        except (Exception, HTTPError) as ex:
             _LOGGER.error("Error during extraction of remote information", ex)
 
         _LOGGER.debug("Remote information extracted successfully, generating token...")
