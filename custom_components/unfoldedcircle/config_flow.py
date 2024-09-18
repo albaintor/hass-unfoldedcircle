@@ -20,7 +20,7 @@ from homeassistant.helpers.selector import (
     EntitySelector,
     EntitySelectorConfig,
 )
-from .helpers import validate_dock_password
+from .helpers import validate_dock_password, get_ha_websocket_url
 
 from .const import (
     CONF_ACTIVITIES_AS_SWITCHES,
@@ -111,7 +111,7 @@ async def async_step_select_entities(
                 _LOGGER.debug("Refresh the integration entities of %s", integration_id)
                 integration_entities = await remote.get_remote_integration_entities(integration_id, True)
                 _LOGGER.debug("Integration entities of %s : %s", integration_id, integration_entities)
-            except (Exception, HTTPError) as ex:
+            except Exception as ex:
                 _LOGGER.warning("Error while refreshing integration entities of %s", integration_id, ex)
 
         # Wait until 5 seconds so that the driver connects to HA and subscribe to events
@@ -125,7 +125,7 @@ async def async_step_select_entities(
                 if subscribed_entities_subscription is not None and configure_entities_subscription is not None:
                     break
                 _LOGGER.debug("Waiting for current subscribed entities from HA driver... (%s)", retries)
-            except (Exception, HTTPError) as ex:
+            except Exception as ex:
                 _LOGGER.error("Error while waiting for websocket events", ex)
 
         if configure_entities_subscription is None:
@@ -328,7 +328,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             await self._remote.get_remote_information()
             await self._remote.get_remote_configuration()
             await self._remote.get_remote_wifi_info()
-        except (Exception, HTTPError) as ex:
+        except Exception as ex:
             _LOGGER.error("Error during extraction of remote information", ex)
 
         _LOGGER.debug("Remote information extracted successfully, generating token...")
@@ -338,12 +338,14 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         token = None
         try:
             token = await generate_token(self.hass, f"{self._remote.name}  ({self._remote.serial_number})")
-            _LOGGER.debug("Generated token : %s", f"{self._remote.name}  ({self._remote.serial_number})")
+            websocket_url = get_ha_websocket_url(self.hass)
+            _LOGGER.debug(f"Generated token for remote : {self._remote.name}  ({self._remote.serial_number}), with websocket url {websocket_url}")
             await self._remote.set_token_for_external_system(
                 system=UC_HA_SYSTEM, token_id=UC_HA_TOKEN_ID, token=token, name="Home Assistant Access token",
                 description="URL and long lived access token for Home Assistant WebSocket API",
-                url=url, data=""
+                url=websocket_url, data=""
             )
+
             remote_drivers_instances = await self._remote.get_integrations()
             _LOGGER.debug("Remote list of integrations %s", remote_drivers_instances)
             try:

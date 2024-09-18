@@ -28,7 +28,7 @@ from .dock import Dock
 _LOGGER = logging.getLogger(__name__)
 
 
-class HTTPError(BaseException):
+class HTTPError(Exception):
     """Raised when an HTTP operation fails."""
 
     def __init__(self, status_code, message) -> None:
@@ -38,15 +38,15 @@ class HTTPError(BaseException):
         super().__init__(self.message, self.status_code)
 
 
-class RemoteConnectionError(BaseException):
+class RemoteConnectionError(Exception):
     """Raised when HTTP connection fails."""
 
 
-class AuthenticationError(BaseException):
+class AuthenticationError(Exception):
     """Raised when HTTP login fails."""
 
 
-class SystemCommandNotFound(BaseException):
+class SystemCommandNotFound(Exception):
     """Raised when an invalid system command is supplied."""
 
     def __init__(self, message) -> None:
@@ -55,7 +55,7 @@ class SystemCommandNotFound(BaseException):
         super().__init__(self.message)
 
 
-class ExternalSystemNotRegistered(BaseException):
+class ExternalSystemNotRegistered(Exception):
     """Raised when an unregistered external system is supplied."""
 
     def __init__(self, message) -> None:
@@ -64,7 +64,7 @@ class ExternalSystemNotRegistered(BaseException):
         super().__init__(self.message)
 
 
-class InvalidIRFormat(BaseException):
+class InvalidIRFormat(Exception):
     """Raised when invalid or insufficient IR details are passed."""
 
     def __init__(self, message) -> None:
@@ -73,7 +73,7 @@ class InvalidIRFormat(BaseException):
         super().__init__(self.message)
 
 
-class NoEmitterFound(BaseException):
+class NoEmitterFound(Exception):
     """Raised when no emitter could be identified from criteria given."""
 
     def __init__(self, message) -> None:
@@ -82,7 +82,7 @@ class NoEmitterFound(BaseException):
         super().__init__(self.message)
 
 
-class ApiKeyNotFound(BaseException):
+class ApiKeyNotFound(Exception):
     """Raised when API Key with given name can't be found.
 
     Attributes:
