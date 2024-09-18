@@ -21,7 +21,6 @@ from homeassistant.helpers.selector import (
     EntitySelectorConfig,
 )
 from .helpers import validate_dock_password
-from pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
 
 from .const import (
     CONF_ACTIVITIES_AS_SWITCHES,
@@ -34,7 +33,7 @@ from .const import (
     HA_SUPPORTED_DOMAINS, UC_HA_TOKEN_ID, UC_HA_SYSTEM, UC_HA_DRIVER_ID
 )
 from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
-from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote, RemoteConnectionError
 from .websocket import SubscriptionEvent, UCWebsocketClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -108,20 +107,25 @@ async def async_step_select_entities(
             if not integration_id.startswith(UC_HA_DRIVER_ID):
                 continue
             # Force reload of all the integrations entities as we don't know which one to address
-            _LOGGER.debug("Refresh the integration entities of %s : %s", integration_id,
-                          await remote.get_remote_integration_entities(integration_id, True))
+            try:
+                _LOGGER.debug("Refresh the integration entities of %s : %s", integration_id,
+                              await remote.get_remote_integration_entities(integration_id, True))
+            except Exception as ex:
+                _LOGGER.warning("Error while refreshing integration entities of %s", integration_id, ex)
 
         # Wait until 5 seconds so that the driver connects to HA and subscribe to events
         retries = 5
         while retries > 0:
             await asyncio.sleep(1)
             retries -= 1
-            subscribed_entities_subscription = websocket_client.get_subscribed_entities(remote.hostname)
-            configure_entities_subscription = websocket_client.get_driver_subscription(remote.hostname)
-            if subscribed_entities_subscription is not None and configure_entities_subscription is not None:
-                break
-            _LOGGER.debug("Waiting for current subscribed entities from HA driver... (%s)", retries)
-
+            try:
+                subscribed_entities_subscription = websocket_client.get_subscribed_entities(remote.hostname)
+                configure_entities_subscription = websocket_client.get_driver_subscription(remote.hostname)
+                if subscribed_entities_subscription is not None and configure_entities_subscription is not None:
+                    break
+                _LOGGER.debug("Waiting for current subscribed entities from HA driver... (%s)", retries)
+            except Exception as ex:
+                _LOGGER.error("Error while waiting for websocket events", ex)
         if configure_entities_subscription is None:
             _LOGGER.error(
                 "The remote's websocket didn't subscribe to configuration event, "
@@ -294,22 +298,38 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
 
         try:
             await self._remote.can_connect()
+            _LOGGER.debug("Connection successful to %s", self._remote.endpoint)
         except AuthenticationError as err:
             raise InvalidAuth from err
-        except CannotConnect as ex:  # pylint: disable=broad-except
+        except RemoteConnectionError as ex:  # pylint: disable=broad-except
             raise CannotConnect from ex
 
-        for key in await self._remote.get_api_keys():
-            if key.get("name") == AUTH_APIKEY_NAME:
-                await self._remote.revoke_api_key()
+        try:
+            for key in await self._remote.get_api_keys():
+                if key.get("name") == AUTH_APIKEY_NAME:
+                    await self._remote.revoke_api_key()
+        except Exception as ex:
+            _LOGGER.warning("Could not revoke existing API key %s", AUTH_APIKEY_NAME, ex)
 
         url = get_url(self.hass)
-        key = await self._remote.create_api_key()
+        key = None
+        try:
+            key = await self._remote.create_api_key()
+        except Exception as ex:
+            _LOGGER.warning(f"Could not create an API key {AUTH_APIKEY_NAME} on the remote ", ex)
+
         if not key:
             raise InvalidAuth("Unable to login: failed to create API key")
-        await self._remote.get_remote_information()
-        await self._remote.get_remote_configuration()
-        await self._remote.get_remote_wifi_info()
+        _LOGGER.debug("Remote registered successfully, retrieving information...")
+
+        try:
+            await self._remote.get_remote_information()
+            await self._remote.get_remote_configuration()
+            await self._remote.get_remote_wifi_info()
+        except Exception as ex:
+            _LOGGER.error("Error during extraction of remote information", ex)
+
+        _LOGGER.debug("Remote information extracted successfully, generating token...")
 
         # If this part (register a new HA token and send it to the remote) fails, we should let the config flow continue
         # It will let have the remote entities inside HA, but it will not let configure the HA entities on the remote
@@ -381,8 +401,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         endpoint = f"http://{host}:{port}/api/"
         # Best location to initialize websocket instance : it will run even if no integrations are configured
         self._websocket_client = UCWebsocketClient(self.hass)
-        mac_address = None
-        is_simulator = False
         # TODO : check RemoteThree regex see with @markus
         try:
             mac_address = (
@@ -404,7 +422,6 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 ):
                     return self.async_abort(reason="no_mac")
                 _LOGGER.debug("Zeroconf from the Simulator %s", discovery_info)
-                is_simulator = True
                 mac_address = SIMULATOR_MAC_ADDRESS.replace(":", "").lower()
 
         remote_name = "Remote Two"
@@ -520,6 +537,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             )
 
         try:
+            _LOGGER.debug("Trying to connect to the remote from manual user input %s", user_input)
             info = await self.validate_input(user_input, "")
             self._data = info
             self.discovery_info.update({CONF_MAC: info[CONF_MAC]})

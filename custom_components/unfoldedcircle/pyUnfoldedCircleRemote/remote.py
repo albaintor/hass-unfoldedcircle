@@ -21,7 +21,7 @@ from .const import (
     ZEROCONF_SERVICE_TYPE,
     ZEROCONF_TIMEOUT,
     RemotePowerModes,
-    RemoteUpdateType,
+    RemoteUpdateType, SIMULATOR_NAMES,
 )
 from .dock import Dock
 
@@ -36,6 +36,10 @@ class HTTPError(BaseException):
         self.status_code = status_code
         self.message = message
         super().__init__(self.message, self.status_code)
+
+
+class RemoteConnectionError(BaseException):
+    """Raised when HTTP connection fails."""
 
 
 class AuthenticationError(BaseException):
@@ -451,6 +455,8 @@ class Remote:
             self.client() as session,
             session.head(self.url("activities")) as response,
         ):
+            if response.status == 503:
+                raise RemoteConnectionError
             if response.status == 401:
                 raise AuthenticationError
             return response.status == 200
@@ -737,7 +743,7 @@ class Remote:
             self._serial_number = information.get("serial_number")
             self._hw_revision = information.get("hw_revision")
 
-            if self._model_name == "Remote Two Simulator":
+            if self._model_name in SIMULATOR_NAMES:
                 self._is_simulator = True
             return information
 
