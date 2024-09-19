@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 DOMAIN = "unfoldedcircle"
-
+DEFAULT_HASS_URL = "http://homeassistant.local:8123"
 CONF_SERIAL = "serial"
 CONF_ACTIVITY_GROUP_MEDIA_ENTITIES = "activity_group_media_entities"
 CONF_GLOBAL_MEDIA_ENTITY = "global_media_entity"

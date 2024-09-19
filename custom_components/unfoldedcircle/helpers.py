@@ -6,6 +6,9 @@ import logging
 from homeassistant.core import HomeAssistant
 from urllib.parse import urljoin, urlparse
 
+from homeassistant.helpers.network import get_url, NoURLAvailableError
+
+from custom_components.unfoldedcircle.const import DEFAULT_HASS_URL
 from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
 from pyUnfoldedCircleRemote.remote import Remote
 
@@ -13,7 +16,11 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def get_ha_websocket_url(hass: HomeAssistant) -> str:
-    url = urlparse(hass.config.internal_url)
+    try:
+        hass_url: str = get_url(hass)
+    except NoURLAvailableError:
+        hass_url = DEFAULT_HASS_URL
+    url = urlparse(hass_url)
     return urljoin(f"ws://{url.netloc}", "/api/websocket")
 
 

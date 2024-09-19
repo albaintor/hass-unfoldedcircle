@@ -34,15 +34,10 @@ from .const import (
     HA_SUPPORTED_DOMAINS, UC_HA_TOKEN_ID, UC_HA_SYSTEM, UC_HA_DRIVER_ID, CONF_HA_WEBSOCKET_URL
 )
 from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
-from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote, RemoteConnectionError, HTTPError
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote, RemoteConnectionError
 from .websocket import SubscriptionEvent, UCWebsocketClient
 
 _LOGGER = logging.getLogger(__name__)
-
-STEP_USER_DATA_SCHEMA: dict[Required | Optional, Type] = {
-        vol.Required("host"): str,
-        vol.Required("pin"): str,
-    }
 
 STEP_ZEROCONF_DATA_SCHEMA: dict[Required | Optional, Type] = {vol.Required("pin"): str}
 
@@ -556,8 +551,11 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         self._websocket_client = UCWebsocketClient(self.hass)
         errors: dict[str, str] = {}
         if user_input is None or user_input == {}:
-            schema = STEP_USER_DATA_SCHEMA.copy()
-            schema[vol.Optional(CONF_HA_WEBSOCKET_URL, default=get_ha_websocket_url(self.hass))] = str
+            schema: dict[Required | Optional, Type] = {
+                vol.Required("host"): str,
+                vol.Required("pin"): str,
+                vol.Optional(CONF_HA_WEBSOCKET_URL, default=get_ha_websocket_url(self.hass)): str
+            }
             return self.async_show_form(
                 step_id="user",
                 data_schema=vol.Schema(schema),
@@ -585,8 +583,19 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 return await self.async_step_dock(info=info, first_call=True)
             return await self.async_step_select_entities(None)
 
-        schema = STEP_USER_DATA_SCHEMA.copy()
-        schema[vol.Optional(CONF_HA_WEBSOCKET_URL, default=get_ha_websocket_url(self.hass))] = str
+        current_host = None
+        if user_input and user_input.get("host"):
+            current_host = user_input.get("host")
+
+        current_ha_url = get_ha_websocket_url(self.hass)
+        if user_input and user_input.get(CONF_HA_WEBSOCKET_URL):
+            current_ha_url = user_input.get(CONF_HA_WEBSOCKET_URL)
+
+        schema: dict[Required | Optional, Type] = {
+            vol.Required("host", default=current_host): str,
+            vol.Required("pin"): str,
+            vol.Optional(CONF_HA_WEBSOCKET_URL, default=current_ha_url): str
+        }
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(schema),
