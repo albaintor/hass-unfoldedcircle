@@ -664,10 +664,10 @@ class Remote:
     async def put_integration(self, integration_id: str, command: str | None = None):
         """Update the given integration instance."""
         async with self.client() as session:
-            params = {}
             if command:
-                params["cmd"] = command
-            response = await session.put(self.url(f"intg/instances/{integration_id}"), params=params)
+                response = await session.put(self.url(f"intg/instances/{integration_id}?cmd={command}"))
+            else:
+                response = await session.put(self.url(f"intg/instances/{integration_id}"))
             await self.raise_on_error(response)
             return await response.json()
 

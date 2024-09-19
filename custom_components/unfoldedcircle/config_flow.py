@@ -34,7 +34,7 @@ from .const import (
     HA_SUPPORTED_DOMAINS, UC_HA_TOKEN_ID, UC_HA_SYSTEM, UC_HA_DRIVER_ID, CONF_HA_WEBSOCKET_URL
 )
 from .pyUnfoldedCircleRemote.const import AUTH_APIKEY_NAME, SIMULATOR_MAC_ADDRESS
-from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote, RemoteConnectionError
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote, RemoteConnectionError, HTTPError
 from .websocket import SubscriptionEvent, UCWebsocketClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -91,6 +91,7 @@ async def async_step_select_entities(
 
     if user_input is None:
         # First find the active HA drivers on the remote
+        error_message = ""
         integrations = await remote.get_integrations()
         _LOGGER.debug("Extraction of remote's integrations %s", integrations)
         for integration in integrations:
@@ -105,7 +106,13 @@ async def async_step_select_entities(
                 # If the HA driver is disconnected, request connection in order to retrieve and update entities
                 if integration.get("device_state", "") != "CONNECTED":
                     _LOGGER.debug("Home assistant driver is disconnected, connect it...")
-                    await remote.put_integration(integration.get("integration_id"), command="CONNECT")
+                    try:
+                        await remote.put_integration(integration.get("integration_id"), command="CONNECT")
+                    except HTTPError as ex:
+                        error_message = ex.message
+                        _LOGGER.error("TOTO %S", error_message)
+                        errors["base"] = "ha_driver_failure"
+                        _LOGGER.error("Error while trying to connect remote and driver", ex)
 
                 _LOGGER.debug("Refresh the integration entities of %s", integration_id)
                 integration_entities = await remote.get_remote_integration_entities(integration_id, True)
@@ -113,6 +120,7 @@ async def async_step_select_entities(
             except Exception as ex:
                 _LOGGER.warning("Error while refreshing integration entities of %s", integration_id, ex)
                 errors["base"] = "ha_driver_failure"
+                error_message = str(ex)
 
         # Wait until 5 seconds so that the driver connects to HA and subscribe to events
         retries = 5
@@ -133,12 +141,14 @@ async def async_step_select_entities(
                 "The remote's websocket didn't subscribe to configuration event, "
                 "unable to retrieve and update entities"
             )
+            # TODO : improve errors display with placeholders (but not working with menu ?)
             return config_flow.async_show_menu(
                 step_id="select_entities",
                 menu_options={
-                    "select_entities": "Remote is not connected, retry",
+                    "select_entities": f"Error {error_message}, retry",
                     "finish": "Ignore this step and finish",
                 },
+                description_placeholders={"message": error_message}
             )
         _LOGGER.debug("Found configuration subscription for remote : %s", configure_entities_subscription)
         subscribed_entities: list[str] = []
@@ -884,7 +894,6 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
 
         # If user asks to configure entities, the HA driver may not have been configured at all
         # so we need to regenerate the HA token and check for a HA driver instance and create it if none
-
         # Websocket Home Assistant URL
         if user_input is None:
             websocket_url = get_ha_websocket_url(self.hass)
@@ -911,7 +920,10 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
                 # If the HA driver is disconnected, request connection in order to retrieve and update entities
                 if ha_driver_instance.get("device_state", "") != "CONNECTED":
                     _LOGGER.debug("Home assistant driver is disconnected, connect it...")
-                    await self._remote.put_integration(ha_driver_instance.get("integration_id"), command="CONNECT")
+                    try:
+                        await self._remote.put_integration(ha_driver_instance.get("integration_id"), command="CONNECT")
+                    except HTTPError as ex:
+                        _LOGGER.error("Error while trying to connect remote and driver", ex)
             except StopIteration:
                 _LOGGER.debug("No Home assistant driver instance (%s), create one", UC_HA_DRIVER_ID)
                 await self._remote.create_driver_instance(UC_HA_DRIVER_ID, {
