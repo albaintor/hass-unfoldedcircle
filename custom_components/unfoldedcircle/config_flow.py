@@ -228,11 +228,9 @@ async def async_step_select_entities(
                 await remote.get_remote_integration_entities(integration_id, True)
                 await asyncio.sleep(3)
                 # Subscribe to all available entities sent before
-                _LOGGER.debug(
-                    "Set all available entities as subscribed",
-                    ha_driver_instance)
+                _LOGGER.debug("Set all available entities as subscribed %s", ha_driver_instance)
                 await remote.set_remote_integration_entities(integration_id, [])
-                _LOGGER.debug("Home assistant driver instance found %s", ha_driver_instance)
+                _LOGGER.debug("Entities registered successfully for integration : %s", integration_id)
             except StopIteration:
                 _LOGGER.error(
                     "Failed to notify remote with the new entities %s for driver id %s",
@@ -260,6 +258,7 @@ async def async_step_select_entities(
                     "finish": "Ignore this step and finish",
                 },
             )
+        _LOGGER.debug("Entities registered successfully, finishing config flow")
         return await finish_callback(None)
 
 
@@ -756,6 +755,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_finish(
             self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
+        _LOGGER.debug("Create entry with following data %s", self._data)
         return self.async_create_entry(title=self._data["title"], data=self._data)
 
 
