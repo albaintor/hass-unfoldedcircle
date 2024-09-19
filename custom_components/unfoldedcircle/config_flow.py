@@ -755,8 +755,14 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_finish(
             self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        _LOGGER.debug("Create entry with following data %s", self._data)
-        return self.async_create_entry(title=self._data["title"], data=self._data)
+        _LOGGER.debug("Create registry entry")
+        try:
+            result = self.async_create_entry(title=self._data["title"], data=self._data)
+            _LOGGER.debug("Registry entry creation result : %s", result)
+            return result
+        except Exception as ex:
+            _LOGGER.error("Error while creating registry entry", ex)
+            raise ex
 
 
 class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
