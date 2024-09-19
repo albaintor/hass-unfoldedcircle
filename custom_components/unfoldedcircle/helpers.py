@@ -4,6 +4,7 @@ import asyncio
 import logging
 
 from homeassistant.core import HomeAssistant
+from urllib.parse import urljoin, urlparse
 
 from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
 from pyUnfoldedCircleRemote.remote import Remote
@@ -12,7 +13,8 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def get_ha_websocket_url(hass: HomeAssistant) -> str:
-    return hass.config.internal_url.replace("http://", "ws://") + "/api/websocket"
+    url = urlparse(hass.config.internal_url)
+    return urljoin(f"ws://{url.netloc}", "/api/websocket")
 
 
 async def validate_dock_password(remote_api: Remote, user_info) -> bool:

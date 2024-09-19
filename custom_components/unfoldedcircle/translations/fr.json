@@ -14,18 +14,21 @@
       "user": {
         "data": {
           "host": "Hôte",
-          "pin": "Code PIN"
+          "pin": "Code PIN",
+          "ha_ws_url": "Adresse websocket de Home Assistant"
         }
       },
       "zeroconf_confirm": {
         "data": {
-          "pin": "Code PIN"
+          "pin": "Code PIN",
+          "ha_ws_url": "Adresse websocket de Home Assistant"
         },
         "title": "Remote Two"
       },
       "reauth_confirm": {
         "data": {
-          "pin": "Code PIN"
+          "pin": "Code PIN",
+          "ha_ws_url": "Adresse websocket de Home Assistant"
         },
         "title": "Réauthentification avec le code PIN"
       }
@@ -54,6 +57,22 @@
         "data": {
           "activities_as_switches": "Create all activities as switches",
           "suppress_activity_groups": "Supprimer la création d'entités de groupe d'activités"
+        }
+      },
+      "select_entities": {
+        "title": "Unfolded Circle Options",
+        "description": "Ajouter ou supprimer des entités sur la télécommande",
+        "data": {
+          "add_entities": "Ajouter des entités",
+          "remove_entities": "Supprimer des entités",
+          "ha_ws_url": "Adresse websocket de Home Assistant"
+        }
+      },
+      "remote_websocket": {
+        "title": "Unfolded Circle Options",
+        "description": "Impossible de se connecter à la télécommande, vérifiez la configuration",
+        "data": {
+          "ha_ws_url": "Adresse websocket de Home Assistant"
         }
       }
     }

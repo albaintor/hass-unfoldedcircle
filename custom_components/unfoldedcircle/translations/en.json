@@ -16,7 +16,8 @@
       "user": {
         "data": {
           "host": "Host",
-          "pin": "PIN Code"
+          "pin": "PIN Code",
+          "ha_ws_url": "Home Assistant websocket URL"
         }
       },
       "dock": {
@@ -28,13 +29,15 @@
       },
       "zeroconf_confirm": {
         "data": {
-          "pin": "PIN Code"
+          "pin": "PIN Code",
+          "ha_ws_url": "Home Assistant websocket URL"
         },
-        "title": "Remote Two"
+        "title": "Remote Two / Remote 3"
       },
       "reauth_confirm": {
         "data": {
-          "pin": "PIN Code"
+          "pin": "PIN Code",
+          "ha_ws_url": "Home Assistant websocket URL"
         },
         "title": "Reauthenticate with PIN"
       },
@@ -43,7 +46,8 @@
         "description": "Add or remove entities to the remote",
         "data": {
           "add_entities": "Add entities",
-          "remove_entities": "Remove entities"
+          "remove_entities": "Remove entities",
+          "ha_ws_url": "Home Assistant websocket URL"
         },
         "menu_options": {
           "select_entities": "Remote is not connected, retry",
@@ -84,7 +88,15 @@
         "description": "Add or remove entities to the remote",
         "data": {
           "add_entities": "Add entities",
-          "remove_entities": "Remove entities"
+          "remove_entities": "Remove entities",
+          "ha_ws_url": "Home Assistant websocket URL"
+        }
+      },
+      "remote_websocket": {
+        "title": "Unfolded Circle Options",
+        "description": "Could not connect to the remote, please check the configuration",
+        "data": {
+          "ha_ws_url": "Home Assistant websocket URL"
         }
       }
     }
