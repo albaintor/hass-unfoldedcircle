@@ -110,17 +110,20 @@ async def async_step_select_entities(
                         await remote.put_integration(integration.get("integration_id"), command="CONNECT")
                     except HTTPError as ex:
                         error_message = ex.message
-                        _LOGGER.error("TOTO %S", error_message)
                         errors["base"] = "ha_driver_failure"
-                        _LOGGER.error("Error while trying to connect remote and driver", ex)
+                        _LOGGER.error("Error while trying to connect remote and driver : %s", ex)
 
+                _LOGGER.error("TOTO 1")
                 _LOGGER.debug("Refresh the integration entities of %s", integration_id)
                 integration_entities = await remote.get_remote_integration_entities(integration_id, True)
                 _LOGGER.debug("Integration entities of %s : %s", integration_id, integration_entities)
             except Exception as ex:
+                _LOGGER.error("TOTO 2")
                 _LOGGER.warning("Error while refreshing integration entities of %s", integration_id, ex)
                 errors["base"] = "ha_driver_failure"
                 error_message = str(ex)
+
+        _LOGGER.error("TOTO 3")
 
         # Wait until 5 seconds so that the driver connects to HA and subscribe to events
         retries = 5

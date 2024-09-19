@@ -31,11 +31,11 @@ _LOGGER = logging.getLogger(__name__)
 class HTTPError(Exception):
     """Raised when an HTTP operation fails."""
 
-    def __init__(self, status_code, message) -> None:
+    def __init__(self, status_code, message: str) -> None:
         """Raise HTTP Error."""
         self.status_code = status_code
         self.message = message
-        super().__init__(self.message, self.status_code)
+        super().__init__(message)
 
 
 class RemoteConnectionError(Exception):
