@@ -624,8 +624,7 @@ class Remote:
         system: str,
         token_id: str,
     ) -> str:
-        """Deletes supplied token for the given system"""
-
+        """Deletes supplied token for the given system."""
         if await self.is_external_system_valid(system):
             async with (
                 self.client() as session,
@@ -639,7 +638,7 @@ class Remote:
 
     async def is_external_system_valid(self, system) -> bool:
         """Checks against the registered external systems on the remote
-        to validate the supplied system name"""
+        to validate the supplied system name."""
         registered_systems = await self.get_registered_external_systems()
         _LOGGER.debug("Remote registered systems %s", registered_systems)
         for rs in registered_systems:
@@ -647,7 +646,7 @@ class Remote:
                 return True
 
     async def get_integrations(self) -> list[dict]:
-        """Retrieves the list of integration instances"""
+        """Retrieves the list of integration instances."""
         async with self.client() as session:
             page = 1
             data: list[dict] = []
@@ -661,6 +660,16 @@ class Remote:
                     break
                 page += 1
             return data
+
+    async def put_integration(self, integration_id: str, command: str | None = None):
+        """Update the given integration instance."""
+        async with self.client() as session:
+            params = {}
+            if command:
+                params["cmd"] = command
+            response = await session.put(self.url(f"intg/instances/{integration_id}"), params=params)
+            await self.raise_on_error(response)
+            return await response.json()
 
     async def get_driver_instance(self, driver_id: str) -> dict[str]:
         """Retrieves the driver instance from its driver id"""

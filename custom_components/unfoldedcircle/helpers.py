@@ -9,8 +9,8 @@ from urllib.parse import urljoin, urlparse
 from homeassistant.helpers.network import get_url, NoURLAvailableError
 
 from custom_components.unfoldedcircle.const import DEFAULT_HASS_URL
-from pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
-from pyUnfoldedCircleRemote.remote import Remote
+from .pyUnfoldedCircleRemote.dock_websocket import DockWebsocket
+from .pyUnfoldedCircleRemote.remote import Remote
 
 _LOGGER = logging.getLogger(__name__)
 

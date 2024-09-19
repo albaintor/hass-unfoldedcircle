@@ -8,6 +8,7 @@
     "error": {
       "cannot_connect": "Echec de la connexion",
       "invalid_auth": "Authentification incorrecte",
+      "ha_driver_failure": "Impossible de se connecter au pilote Home Assistant de la télécommande",
       "unknown": "Erreur inattendue"
     },
     "step": {

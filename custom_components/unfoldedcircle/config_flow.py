@@ -102,11 +102,17 @@ async def async_step_select_entities(
                 continue
             # Force reload of all the integrations entities as we don't know which one to address
             try:
+                # If the HA driver is disconnected, request connection in order to retrieve and update entities
+                if integration.get("device_state", "") != "CONNECTED":
+                    _LOGGER.debug("Home assistant driver is disconnected, connect it...")
+                    await remote.put_integration(integration.get("integration_id"), command="CONNECT")
+
                 _LOGGER.debug("Refresh the integration entities of %s", integration_id)
                 integration_entities = await remote.get_remote_integration_entities(integration_id, True)
                 _LOGGER.debug("Integration entities of %s : %s", integration_id, integration_entities)
             except Exception as ex:
                 _LOGGER.warning("Error while refreshing integration entities of %s", integration_id, ex)
+                errors["base"] = "ha_driver_failure"
 
         # Wait until 5 seconds so that the driver connects to HA and subscribe to events
         retries = 5
@@ -172,7 +178,7 @@ async def async_step_select_entities(
             return config_flow.async_show_menu(
                 step_id="select_entities",
                 menu_options={
-                    "select_entities": "Remote is not connected, retry",
+                    "select_entities": "Remote driver is not connected, retry",
                     "finish": "Ignore this step and finish",
                 },
             )
@@ -209,7 +215,7 @@ async def async_step_select_entities(
                 return config_flow.async_show_menu(
                     step_id="select_entities",
                     menu_options={
-                        "select_entities": "Try again",
+                        "select_entities": "Failed to notify the remote with the new entities. Try again",
                         "finish": "Ignore this step and finish",
                     },
                 )
@@ -509,11 +515,22 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         """Confirm discovery."""
         errors: dict[str, str] = {}
         if user_input is None or user_input == {}:
+            name = "Remote Two"
+            if self.discovery_info.get("model") == "UCR2":
+                name = "Remote Two"
+            else:
+                name = "Remote 3"
+
+            placeholder: dict[str, any] = {
+                "name": name,
+            }
+
             schema = STEP_ZEROCONF_DATA_SCHEMA.copy()
             schema[vol.Optional(CONF_HA_WEBSOCKET_URL, default=get_ha_websocket_url(self.hass))] = str
             return self.async_show_form(
                 step_id="zeroconf_confirm",
                 data_schema=vol.Schema(schema),
+                description_placeholders=placeholder,
                 errors={},
             )
         try:
@@ -891,6 +908,10 @@ class UnfoldedCircleRemoteOptionsFlowHandler(config_entries.OptionsFlow):
                 ha_driver_instance = next(filter(lambda instance: instance.get('driver_id', None) == UC_HA_DRIVER_ID,
                                                  remote_drivers_instances))
                 _LOGGER.debug("Home assistant driver instance found %s", ha_driver_instance)
+                # If the HA driver is disconnected, request connection in order to retrieve and update entities
+                if ha_driver_instance.get("device_state", "") != "CONNECTED":
+                    _LOGGER.debug("Home assistant driver is disconnected, connect it...")
+                    await self._remote.put_integration(ha_driver_instance.get("integration_id"), command="CONNECT")
             except StopIteration:
                 _LOGGER.debug("No Home assistant driver instance (%s), create one", UC_HA_DRIVER_ID)
                 await self._remote.create_driver_instance(UC_HA_DRIVER_ID, {

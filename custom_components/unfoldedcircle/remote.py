@@ -20,7 +20,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import service, entity_platform
 from homeassistant.helpers.entity import ToggleEntityDescription
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from pyUnfoldedCircleRemote.remote import AuthenticationError
+from .pyUnfoldedCircleRemote.remote import AuthenticationError
 
 from .const import (
     DOMAIN,
