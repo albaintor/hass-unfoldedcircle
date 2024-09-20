@@ -91,7 +91,7 @@ async def async_step_select_entities(
 
     if user_input is None:
         # First find the active HA drivers on the remote
-        error_message = ""
+        error_message = None
         integrations = await remote.get_integrations()
         _LOGGER.debug("Extraction of remote's integrations %s", integrations)
         for integration in integrations:
@@ -140,6 +140,8 @@ async def async_step_select_entities(
                 "The remote's websocket didn't subscribe to configuration event, "
                 "unable to retrieve and update entities"
             )
+            if error_message is None:
+                error_message = "remote's driver didn't respond to requests"
             # TODO : improve errors display with placeholders (but not working with menu ?)
             return config_flow.async_show_menu(
                 step_id="select_entities",
@@ -372,6 +374,7 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
                 })
         except Exception as ex:
             _LOGGER.error("Error during the driver registration to the remote %s, keep on config flow", ex)
+            raise CannotCreateHAToken from ex
 
         mac_address = None
         if self._remote.mac_address:
@@ -555,6 +558,8 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             errors["base"] = "cannot_connect"
         except InvalidAuth:
             errors["base"] = "invalid_auth"
+        except CannotCreateHAToken:
+            errors["base"] = "cannot_create_ha_token"
         else:
             if info["docks"]:
                 return await self.async_step_dock(info=info, first_call=True)
@@ -600,6 +605,8 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
             errors["base"] = "cannot_connect"
         except InvalidAuth:
             errors["base"] = "invalid_auth"
+        except CannotCreateHAToken:
+            errors["base"] = "cannot_create_ha_token"
         except Exception:  # pylint: disable=broad-except
             _LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
@@ -745,6 +752,9 @@ class UnfoldedCircleRemoteConfigFlow(ConfigFlow, domain=DOMAIN):
         except InvalidAuth:
             _LOGGER.exception("Invalid PIN")
             errors["base"] = "Invalid PIN"
+        except CannotCreateHAToken:
+            _LOGGER.exception("Cannot register HA token")
+            errors["base"] = "cannot_create_ha_token"
         except Exception as ex:  # pylint: disable=broad-except
             _LOGGER.exception(ex)
             errors["base"] = "unknown"
@@ -974,3 +984,7 @@ class InvalidAuth(HomeAssistantError):
 
 class InvalidDockPassword(HomeAssistantError):
     """Error to indicate an invalid dock password was supplied"""
+
+
+class CannotCreateHAToken(HomeAssistantError):
+    """Error to indicate there the creation of HA token failed."""

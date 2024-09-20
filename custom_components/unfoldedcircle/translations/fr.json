@@ -8,6 +8,8 @@
     "error": {
       "cannot_connect": "Echec de la connexion",
       "invalid_auth": "Authentification incorrecte",
+      "invalid_dock_password": "Mot de passe du dock incorrect. Saisir un mot de passe vide pour ignorer",
+      "cannot_create_ha_token": "Impossible d'enregistrer le token Home Assistant dans la télécommande",
       "ha_driver_failure": "Impossible de se connecter au pilote Home Assistant de la télécommande",
       "unknown": "Erreur inattendue"
     },

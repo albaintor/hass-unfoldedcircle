@@ -229,6 +229,9 @@ class UCWebsocketClient(metaclass=Singleton):
         _LOGGER.debug("get_subscribed_entities for client %s : %s", client_id, self._subscriptions)
         if client_id is None:
             return None
+
+        found_subscriptions: list[SubscriptionEvent] = []
+
         for subscription in self._subscriptions:
             _LOGGER.debug(
                 "Get subscribed entities for client %s : found client %s, (driver %s)",
@@ -237,7 +240,15 @@ class UCWebsocketClient(metaclass=Singleton):
                 subscription.driver_id,
             )
             if subscription.client_id == client_id:
-                return subscription
+                found_subscriptions.append(subscription)
+
+        # There may be several subscriptions for the same client id, take the one with entity IDs
+        if len(found_subscriptions) > 0:
+            _LOGGER.debug("Found several subscriptions for the same client ID, take the one with subscribed entities")
+            for subscription in found_subscriptions:
+                if len(subscription.entity_ids) > 0:
+                    return subscription
+            return found_subscriptions[0]
         return None
 
     def get_driver_subscription(self, client_id: str) -> SubscriptionEvent | None:
@@ -267,7 +278,12 @@ class UCWebsocketClient(metaclass=Singleton):
         _LOGGER.debug(
             "Notify new configuration to remote %s (%s)", client_id, new_configuration
         )
-        configuration.notification_callback({"data": new_configuration})
+        try:
+            configuration.notification_callback({"data": new_configuration})
+        except Exception as ex:
+            _LOGGER.error("Failed to send the new configuration to the remote %s : %s",
+                          configuration.client_id, new_configuration)
+            return False
         return True
 
     def subscribe_entities_events(
@@ -293,15 +309,18 @@ class UCWebsocketClient(metaclass=Singleton):
             old_state = event.data["old_state"]
             new_state = event.data["new_state"]
             _LOGGER.debug("Received notification to send to UC remote %s", event)
-            subscription.notification_callback(
-                {
-                    "data": {
-                        "entity_id": entity_id,
-                        "new_state": new_state,
-                        "old_state": old_state,  # TODO : old state useful ?
+            try:
+                subscription.notification_callback(
+                    {
+                        "data": {
+                            "entity_id": entity_id,
+                            "new_state": new_state,
+                            "old_state": old_state,  # TODO : old state useful ?
+                        }
                     }
-                }
-            )
+                )
+            except Exception as ex:
+                _LOGGER.error("Failed to notify the remote %s : %s", subscription.client_id, event)
 
         def remove_listener() -> None:
             """Remove the listener."""
