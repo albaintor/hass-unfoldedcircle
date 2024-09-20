@@ -12,6 +12,7 @@ from urllib.parse import urljoin, urlparse
 
 import aiohttp
 import zeroconf
+import wakeonlan
 
 from .const import (
     AUTH_APIKEY_NAME,
@@ -460,6 +461,10 @@ class Remote:
             if response.status == 401:
                 raise AuthenticationError
             return response.status == 200
+
+    def wakeonlan(self):
+        """Wake the remote through a magic packet."""
+        wakeonlan.send_magic_packet(self.mac_address, interface="0.0.0.0")
 
     async def raise_on_error(self, response):
         """Raise an HTTP error if the response returns poorly."""

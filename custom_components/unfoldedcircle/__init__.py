@@ -1,6 +1,8 @@
 """The Unfolded Circle Remote integration."""
 
 from __future__ import annotations
+
+import asyncio
 from typing import Any
 import logging
 
@@ -11,13 +13,13 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er, issue_registry
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote
+from .pyUnfoldedCircleRemote.remote import AuthenticationError, Remote, RemoteConnectionError
 
 from .const import (
     DOMAIN,
     UNFOLDED_CIRCLE_API,
     UNFOLDED_CIRCLE_COORDINATOR,
-    UNFOLDED_CIRCLE_DOCK_COORDINATORS,
+    UNFOLDED_CIRCLE_DOCK_COORDINATORS, UC_HA_SYSTEM, UC_HA_TOKEN_ID,
 )
 from .coordinator import (
     UnfoldedCircleRemoteCoordinator,
@@ -170,6 +172,36 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id)
 
     return unload_ok
+
+
+async def async_remove_entry(hass, entry) -> None:
+    """Handle removal of an entry."""
+    try:
+        _LOGGER.debug("Removing remote from Home assistant for entry %s", entry)
+        remote_api = Remote(entry.data["host"], entry.data["pin"], entry.data["apiKey"])
+        try:
+            await remote_api.can_connect()
+        except RemoteConnectionError:
+            _LOGGER.debug("Remote is off, waking it up to remove HA token (if any)")
+            remote_api.wakeonlan()
+            retries = 5
+            connected = False
+            while retries > 0:
+                await asyncio.sleep(1)
+                retries -= 1
+                try:
+                    connected = await remote_api.can_connect()
+                except RemoteConnectionError:
+                    _LOGGER.debug("Remote not connected, %s retries left", retries)
+            if not connected:
+                _LOGGER.error("Remote is unavailable, the HA token cannot be checked and won't be removed")
+                return
+        _LOGGER.debug(f"Remote is connected, try to delete token for {UC_HA_SYSTEM} system")
+        results = await remote_api.delete_token_for_external_system(UC_HA_SYSTEM, UC_HA_TOKEN_ID)
+        _LOGGER.debug(f"Results of token deletion : %s", results)
+        # TODO also delete HA token from HA
+    except Exception as ex:
+        _LOGGER.error("Unfolded Circle Remote async_remove_entry error: %s", ex)
 
 
 async def update_listener(hass: HomeAssistant, entry: ConfigEntry):
